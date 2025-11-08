@@ -1,0 +1,10 @@
+# Ignorar ficheiros de ambiente
+.env
+
+# Ignorar ficheiros temporários ou caches do Python
+__pycache__/
+*.pyc
+
+# Ignorar ficheiros de ambiente de IDEs
+.vscode/
+.idea/
