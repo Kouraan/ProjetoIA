@@ -1,62 +1,41 @@
-import googlemaps
+import osmnx as ox
 import json
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
-API_KEY = os.getenv("GOOGLE_API_KEY")
-gmaps = googlemaps.Client(key=API_KEY)
-
-#Locais de Braga
-LOCATIONS = [
-    "Universidade do Minho, Braga",
-    "Braga Parque, Braga",
-    "Sé de Braga",
-    "Estação de Comboios de Braga",
-    "Altice Forum Braga",
-    "Bom Jesus do Monte",
-    "Largo Senhora-a-Branca, Braga",
-    "Monte do Picoto, Braga"
-]
-
-# Constroi o mapa de Braga com distâncias e tempos entre os locais
 def build_map():
+    filepath = "data/braga_map.json"
+    if os.path.exists(filepath):
+        print(f"O ficheiro '{filepath}' já existe. A geração do mapa foi ignorada.")
+        return
+    
+    # Extrair o grafo das ruas de Braga
+    G = ox.graph_from_place("Braga, Portugal", network_type="drive")
+    
+    nodes = []
+    for node, data in G.nodes(data=True):
+        nodes.append({
+            "id": node,
+            "x": data.get("x"),
+            "y": data.get("y")
+        })
+        
     edges = []
-    # Criar todas as ligações entre os locais
-    for i, origin in enumerate(LOCATIONS):
-        for j, destination in enumerate(LOCATIONS):
-            if i < j:
-                result = gmaps.distance_matrix(
-                    origin,
-                    destination,
-                    mode="driving",
-                    region="pt",
-                    departure_time="now"  # Para obter duração com trânsito
-                )
-                info = result["rows"][0]["elements"][0]
-                if info["status"] == "OK":
-                    distance_km = info["distance"]["value"] / 1000.0 # converter metros para km
-                    time_min = info["duration"]["value"] / 60.0 # converter segundos para minutos
-                    edges.append({
-                        "from": origin,
-                        "to": destination,
-                        "distance": round(distance_km, 2),
-                        "time": round(time_min, 2),
-                    })
-    # Estrutura do grafo
+    for u, v, data in G.edges(data=True):
+        edges.append({
+            "from": u,
+            "to": v,
+            "length": round(data.get("length", 0), 2), # metros
+        })
+        
     data = {
-        "nodes": LOCATIONS,
+        "nodes": nodes,
         "edges": edges
     }
     
-    # Garantir que a pasta 'data' existe
     os.makedirs("data", exist_ok=True)
-    
-    # Guardar em JSON
-    with open("data/map.json", "w", encoding= "utf-8") as f:
+    with open("data/braga_map.json", "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
-    
-    print("Mapa de Braga criado com sucesso em 'data/map.json'.")
+    print("Mapa das ruas de Braga criado com sucesso em 'data/braga_map.json'")
     
 if __name__ == "__main__":
     build_map()

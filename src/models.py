@@ -36,14 +36,13 @@ class Mapa:
             self.graph.add_edge(
                 e["from"],
                 e["to"],
-                distance=e["distance"],
-                time=e["time"],
+                length=e["length"]
             )
     def get_neighbors(self, node):
         return list(self.graph.neighbors(node))
     
     def distance(self, a, b):
-        return self.graph[a][b]["distance"]
+        return self.graph[a][b]["length"]
     
     def time(self, a, b):
         return self.graph[a][b]["time"]
