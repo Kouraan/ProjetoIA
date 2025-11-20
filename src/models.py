@@ -17,7 +17,7 @@ class Veiculo:
         self.disponivel = True              #disponibilidade do veiculo
         
 class Pedido:
-    def __init__(self, id, origem, destino, numPassageiros, horario, prioridade, prefAmbiental):
+    def __init__(self, id, origem, destino, numPassageiros, horario, prioridade, prefAmbiental, tempo_espera=None):
         self.id = id
         self.origem = origem                #coordenadas de origem
         self.destino = destino              #coordenadas de destino
@@ -25,7 +25,9 @@ class Pedido:
         self.horario = horario              #horario pretendido para o pedido
         self.prioridade = prioridade
         self.prefAmbiental = prefAmbiental
-        self.atribuido = False              #se o pedido ja foi atribuido a um veiculo
+        self.estado = "pendente"            # pendente / atribuido / concluido / rejeitado
+        self.veiculo_id = None
+        self.tempo_resposta = None          # tempo real de espera até ser atribuído
         
 class Mapa:
     def __init__(self, filepath):
