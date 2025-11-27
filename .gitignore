@@ -8,3 +8,5 @@ __pycache__/
 # Ignorar ficheiros de ambiente de IDEs
 .vscode/
 .idea/
+data/
+cache/
