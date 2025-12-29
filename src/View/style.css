@@ -1,0 +1,5 @@
+/*  style to be used on every element with id = map  */
+#map {
+    height: 75vh;
+    width: 75%;
+}

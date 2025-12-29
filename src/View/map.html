@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaxiGreen Simulator — Braga</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <!-- Optional project stylesheet -->
+    <link rel="stylesheet" href="/style.css" />
+
+    <style>
+        /* Make the map fill the page */
+        html, body, #map { height: 100%; margin: 0; padding: 0; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <script>
+        // Center over Braga, Portugal
+        const bragaLatLng = [41.5454, -8.4265];
+
+        const map = L.map('map').setView(bragaLatLng, 13);
+
+        // OpenStreetMap base layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Load the network GeoJSON from Flask endpoint
+        fetch('/graph.geojson')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Graph not ready yet');
+                }
+                return response.json();
+            })
+            .then(data => {
+                const graphLayer = L.geoJSON(data, {
+                    style: function (feature) {
+                        return {color: '#ffffff', weight: 2, opacity: 0.8};
+                    }
+                }).addTo(map);
+                // Fit map to network bounds
+                map.fitBounds(graphLayer.getBounds(), {padding: [20,20]});
+
+                fetch('/graph.getTaxis')
+                    .then(response => {
+                        if(!response.ok){ throw new Error('response error'); }
+                        return response.json();
+                    })
+                    .then(taxis => {
+                        const size = 0.0001;
+                        taxis.forEach(taxi => {
+                        const taxiBounds = L.latLngBounds([taxiPos.lat - size, taxiPos.lng - size],
+                                                          [taxiPos.lat + size, taxiPos.lng + size])
+
+                        const rect = L.rectangle(taxiBounds, {
+                            color: "blue",
+                            weight: 1,
+                            fillOpacity: 1.0
+                        }).addTo(map);
+                        });
+                        rect.bringToFront();
+                    })
+        .catch(err => console.error(err));
+            })
+            .catch(err => {
+                console.warn(err);
+                // Retry after a few seconds if not ready
+                setTimeout(() => location.reload(), 3000);
+            });
+        
+    </script>
+
+</body>
+</html>
