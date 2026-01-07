@@ -19,10 +19,14 @@ class Edge:
         with self.l:
             return self.source_id
     
-    def weightFunction(self):
+    def getLength(self):
         with self.l:
-            return 5
+            return self.length
 
     def getSpeed(self):
         with self.l:
             return self.max_speed
+    
+    def weightFunction(self):
+        with self.l:
+            return 5

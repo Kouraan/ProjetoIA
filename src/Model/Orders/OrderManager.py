@@ -2,6 +2,7 @@ from src.Model.Graph.Graph import Graph
 from src.Model.Graph.Node import Node
 from src.Model.Taxi.Taxi import Taxi
 from src.Model.Timer.Clock import Clock
+from src.View.Viewer import Viewer
 from src.Model.Orders.Order import Order,Order_Status
 import random
 from typing import List
@@ -13,27 +14,31 @@ from collections import deque
 
 class OrderManager:
     
-    def __init__(self):
-        self.orders = deque()
+    def __init__(self, crs):
+        self.orders = list()
+        self.priority_orders = list()
+        self.terminated_orders = list()
         self.next_order_id = 1
-
+        self.crs = crs
+        self.rng = random.Random(30)
     
-    def generateOrders(self, graph:Graph, digital_clock_time: int) -> list[Order]:
+    def generateOrders(self, graph:Graph, digital_clock_time: int, clock:Clock) -> list[Order]:
         nodes:list[int] = list(graph.m_nodes.keys())
 
         orders_number = self.activity_function_Orders(digital_clock_time)
         orders = list()
         for i in range(orders_number):
-            choice_source:int = random.choice(nodes)
-            choice_destination:int = random.choice(nodes)
-
+            choice_source:int = self.rng.choice(nodes)
+            choice_destination:int = self.rng.choice(nodes)
             while(choice_source == choice_destination):
-                choice_source = random.choice(nodes)
+                choice_source = self.rng.choice(nodes)
             
-            choice_passengers = random.randint(1,4) 
+            node:Node = graph.m_nodes[choice_source]
+
+            choice_passengers = self.rng.randint(1,4) 
             choice_id = self.next_order_id
             self.next_order_id += 1
-            order = Order(choice_id,choice_source, choice_destination, choice_passengers,digital_clock_time,1)
+            order = Order(choice_id,self.crs,choice_source, choice_destination, choice_passengers,digital_clock_time,1,position=node.get_position())
             orders.append(order)
         
         return orders
@@ -54,47 +59,84 @@ class OrderManager:
         return pending[0]
 
     def giveOrder(self, taxi:Taxi, order:Order):
+        print("set")
         taxi.setOrder(order)
 
 
-    def give_order_to_best_taxi(self, taxis: list[Taxi], graph: Graph, order: Order) -> bool:
+    def give_order_to_best_taxi(self, taxis: list[Taxi], graph: Graph, order: Order, search_algorithm) -> bool:
         destination = order.get_destination()
         best_cost, best_choice_taxi = sys.maxsize, None
 
         for taxi in taxis:
+            
             if taxi.isAvailable():
-                result = graph.search_path(1, taxi.getNode(), destination)
+                result = graph.search_path(search_algorithm, taxi.getNode(), destination)
+                
                 if result is None:
+                    
                     continue
 
-                path, cost = result
+                path, cost, distance = result
                 if cost < best_cost:
                     best_cost, best_choice_taxi = cost, taxi
 
         if best_choice_taxi is None:
             return False  
-
+        
+        order.setVehicle(best_choice_taxi.get_id())
         self.giveOrder(best_choice_taxi, order)
         return True
 
 
 
-    def start_activity(self, taxis: List[Taxi], turn_barrier: Barrier, clock: Clock, graph: Graph):
+    def start_activity(self, taxis: List[Taxi], turn_barrier: Barrier, clock: Clock, graph: Graph, viewer:Viewer, seach_algorithm:int):
+        
+        old_time = -1
         while True:
             time = clock.get_clock_time()
+            if(old_time != time):
+                new_orders = self.generateOrders(graph,time,clock) 
+                
+                for new_order in new_orders:
+                    graph.add_order(new_order)
+                    viewer.add_Order(new_order)
 
-            for _ in range(len(self.orders)):
-                order = self.orders.popleft()
-                if not self.give_order_to_best_taxi(taxis, graph, order):
-                    self.orders.append(order)
+                    if new_order.getPriority() == 0:
+                        self.orders.append(new_order)
+                    else:
+                        self.priority_orders.append(new_order)
+            
+                old_time = time
 
-            new_orders: list[Order] = self.generateOrders(graph, time)
-            for order in new_orders:
-                if not self.give_order_to_best_taxi(taxis, graph, order):
-                    self.orders.append(order)
+            self.give_priority_orders(taxis,graph, seach_algorithm)
 
+            if self.priority_orders.__len__() == 0:
+                self.give_normal_orders(taxis,graph,seach_algorithm)
+
+            
             turn_barrier.wait()
 
 
-
+    def give_priority_orders(self, taxis, graph, search_algorithm) -> bool:
+        i = 0
+        for order in self.priority_orders:
+            if self.give_order_to_best_taxi(taxis,graph,order,search_algorithm):
+                self.priority_orders.remove(order)
+                self.terminated_orders.append(order)
+            
+            i += 1
         
+        return i == 0
+    
+    def give_normal_orders(self, taxis, graph, search_algorithm) -> bool:
+        i = 0
+        for order in self.orders:
+            if self.give_order_to_best_taxi(taxis,graph,order,search_algorithm):
+                self.orders.pop(i)
+                self.terminated_orders.append(order)
+            
+            i += 1
+        
+        return i == 0
+
+    
