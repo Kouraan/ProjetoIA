@@ -2,6 +2,8 @@ from enum import Enum
 from src.Model.Graph.Node import Node
 from threading import Lock
 from src.Util.coordinates_util import to_latlon
+from src.Model.Timer.Clock import Clock
+
 
 class Order_Status(Enum):
     Pendent = 1,
@@ -23,6 +25,7 @@ class Order:
         self.status = Order_Status.Pendent.value           
         self.vehicle_id = None
         self.response_time = None
+        self.completion_time = 0
         self.l = Lock()
 
     def get_destination(self):
@@ -55,9 +58,10 @@ class Order:
                 "response_time": self.response_time
             }
     
-    def complete(self):
+    def complete(self, clock:Clock):
         with self.l:
             print("Completed")
+            self.completion_time = clock.get_clock_time() - self.schedule
             self.status = Order_Status.Concluded.value
     
 

@@ -5,6 +5,7 @@ from typing import Deque, Dict, List, Tuple
 from collections import deque
 from threading import Lock
 from src.Model.Charging_Stations.Charge_Station import Charge_Station,StationType
+
 import pandas
 import heapq
 import random
@@ -13,7 +14,7 @@ import random
 class Graph:
     def __init__(self, directed=False):
         self.m_nodes:Dict[int,Node] = {}  # nodes list id:Node
-        self.m_edges = {}  # edges list id:Edge
+        self.m_edges = [] 
         self.m_graph:Dict[int, List[Tuple[Edge, int]]] = {}  # adjadency graph Node_id: [Edge, Node_id]
         self.charging_nodes: Dict[int, Charge_Station]= {}
         self.m_orders: Dict[int, list[Order]] = {}
@@ -42,7 +43,7 @@ class Graph:
             return
 
         edge = Edge(source_id, destination_id, max_speed, length, positions)
-
+        self.m_edges.append(edge)
         if oneway:
             self.m_graph[source_id].append((edge,destination_id))
         else :
@@ -82,13 +83,14 @@ class Graph:
 
 
     def generate_charging_stations(self, n: int):
+        result = list()
         for _ in range(n):
             choice_source: int = random.choice(list(self.m_nodes.keys()))
-            charge_station: Charge_Station = Charge_Station("EPSG:32629",self.m_nodes[choice_source].get_position(),5)
+            charge_station: Charge_Station = Charge_Station("EPSG:32629",self.m_nodes[choice_source].get_position(),5,random.choice(["petroleum","electric"]))
             self.charging_nodes[choice_source] = charge_station
+            result.append(charge_station)
 
-            stationType = StationType.PETROL
-
+        return result
 
 
 
@@ -163,14 +165,14 @@ class Graph:
             return min_path,min_cost,min_distance
 
 
-    def search_path(self,search_algorithm:int, start:int,target:int, passengers:int = 0, capacity:int=0) -> tuple[list[Edge], int, int]:
+    def search_path(self,search_algorithm:int, start:int,target:int, passengers:int = 0, capacity:int=0, autonomy:int=1000,maxAutonomy:int = 1000) -> tuple[list[Edge], int, int]:
         match search_algorithm:
             case 1:
                 return self.dfsAlgorithm(start,target)
             case 2:
                 return self.bfsAlgorithm(start,target)
             case 3:
-                return self.a_star_Algorithm(start,target, passengers, capacity)
+                return self.a_star_Algorithm(start,target, passengers, capacity,autonomy,maxAutonomy)
 
         
 
@@ -232,7 +234,7 @@ class Graph:
                 return path_edges, weight, distance
 
             for edge, neighbour in self.get_Neighbours(node):
-                if neighbour not in visited:
+                if neighbour not in visited and edge.get_Activity():
                     new_path_edges = path_edges + [(neighbour, edge)]
                     stack.append((neighbour, new_path_edges, weight + edge.weightFunction(), distance + edge.getLength()))
 
@@ -256,7 +258,7 @@ class Graph:
                 return path_edges, total_cost, total_dist
 
             for edge, neighbour in self.get_Neighbours(node):
-                if neighbour not in visited:
+                if neighbour not in visited and edge.get_Activity():
                     visited.add(neighbour)
                     new_path = path_edges + [(node, edge)]
                     queue.append((neighbour, new_path))
@@ -267,14 +269,14 @@ class Graph:
 
 
 
-    def a_star_Algorithm(self, start: int, destination: int, passengers:int, passengers_cap:int):
+    def a_star_Algorithm(self, start: int, destination: int, passengers:int, passengers_cap:int, autonomy:int, maxAutonomy:int):
         all_orders = self.get_all_orders()
         open_set = []
         heapq.heappush(open_set, (0, start))
 
-        came_from = {}               # neighbour -> (node, edge)
-        g_score = {start: 0}         # custo
-        dist_score = {start: 0}      # distância
+        came_from = {}            
+        g_score = {start: 0}         
+        dist_score = {start: 0}
 
         while open_set:
             _, node = heapq.heappop(open_set)
@@ -293,7 +295,7 @@ class Graph:
                     came_from[neighbour] = (node, edge)
                     g_score[neighbour] = tentative_g
                     dist_score[neighbour] = tentative_d
-                    f = tentative_g + self.heuristic(neighbour, destination,1000000,100000,passengers,passengers_cap,all_orders)
+                    f = tentative_g + self.heuristic(neighbour, destination,autonomy, maxAutonomy,passengers,passengers_cap,all_orders)
                     heapq.heappush(open_set, (f, neighbour))
 
         return None
@@ -330,6 +332,19 @@ class Graph:
             print(f"Picked Order {order.get_source()}")
             order.inProgress()
             return order
-
+        
         return None
     
+
+    def recharge_choice_decision(self, current_node,destination_node,autonomy:float,isRecharginPath:bool = False):
+        if current_node not in self.charging_nodes:
+            return None
+
+        distance = self.euclidean_distance(current_node, destination_node)
+        if isRecharginPath:
+            return self.charging_nodes[current_node]
+        if autonomy > distance*3:
+            return None
+        else:
+            return self.charging_nodes[current_node]
+        

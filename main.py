@@ -10,9 +10,9 @@ from flask import Flask, request, jsonify, render_template
 app = Flask(__name__)
 
 default_number_of_taxis = 5
-default_search_algorithm = 2
+default_search_algorithm = 1
 
-taxi_green = TaxiGreen(default_number_of_taxis, default_search_algorithm, 0.5)
+taxi_green = TaxiGreen(default_number_of_taxis, default_search_algorithm, 2.0)
 
 
 
@@ -31,12 +31,17 @@ def get_orders():
     return taxi_green.viewer.json_Orders()
 
 
+@app.route("/stations")
+def get_Stations():
+    return taxi_green.viewer.json_Stations()
+
+
 @app.route("/start",methods=["POST"])
 def start():
     global taxi_green
     parameter = request.json or {}
     number_of_taxis = parameter.get("number_of_taxis", 5)
-    search_algorithm = parameter.get("search_algorithm", 2)
+    search_algorithm = parameter.get("search_algorithm", 3)
     taxi_green.stop()
     taxi_green = TaxiGreen(number_of_taxis, search_algorithm, 0.5)
     taxi_green.start_simulation()

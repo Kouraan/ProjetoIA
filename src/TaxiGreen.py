@@ -2,11 +2,12 @@ from src.Model.Graph.Graph import Graph
 from src.Model.Graph.Node import Node
 from src.Model.Taxi.Taxi import *
 from src.Model.Orders.OrderManager import OrderManager
+from src.Model.Traffic_Manager.Traffic_Manager import Traffic_Manager
 from src.Model.Timer.Clock import Clock
 from src.View.Viewer import Viewer  
 import numpy as np
 import osmnx as ox
-from threading import Thread,Barrier
+from threading import Thread, Barrier, Event
 import random
 import pandas
 
@@ -15,11 +16,12 @@ class TaxiGreen:
     def __init__(self,number_of_taxis:int, search_algorithm:int, atualization_rate:float):
         self.search_algorithm = search_algorithm
         self.crs = self.generate_Graph()
-        self.turn_barrier = Barrier(number_of_taxis+1+1) # number of threads simulating. taxis + thread simulating clock
+        self.turn_barrier = Barrier(number_of_taxis+1+1+1)
         self.clock = Clock(turn_barrier=self.turn_barrier, atualization_time=atualization_rate)
         self.order_manager:OrderManager = OrderManager(self.crs)
         self.taxis:list[Taxi] = self.generate_taxis(number_of_taxis)
         self.viewer:Viewer = Viewer(taxis=self.taxis)
+        self.viewer.charging_Stations = self.charging_stations
         self.active_threads_number = 0
         self.atualization_rate = atualization_rate
         self.Running = Event()
@@ -68,7 +70,8 @@ class TaxiGreen:
             G_new.add_edge(u,v,maxspeed,edge['length'],edge['geometry'], edge['oneway'])
 
         self.graph = G_new
-        self.graph.generate_charging_stations(10)
+        self.congestions_manager:Traffic_Manager = Traffic_Manager(self.graph.m_edges)
+        self.charging_stations = self.graph.generate_charging_stations(10)
         return crs
 
 
@@ -77,9 +80,9 @@ class TaxiGreen:
         taxis = list()
 
         for i in range(number_of_taxis):
-            initial_node = nodes[random.randint(0, self.graph.m_nodes.__len__())] 
+            initial_node = nodes[random.randint(0, len(nodes)-1)] 
             taxi_type = random.randint(1,2)
-            autonomy = random.randint(2000,2500)
+            autonomy = random.randint(20,25)
             capacity = random.randint(1,4)
             kmCost = random.randint(1,5)
             ambiental_impact = round(random.random(), 2)
@@ -97,12 +100,14 @@ class TaxiGreen:
         self.active_threads_number += 1
         order_manager_thread = Thread(target=self.order_manager.start_activity,args=(self.taxis,self.turn_barrier,self.clock,self.graph,self.viewer,self.search_algorithm))
         self.active_threads_number += 1
+        congestion_thread = Thread(target=self.congestions_manager.start_activity, args=(self.turn_barrier,self.clock))
         taxi_Threads = list()
         clock_thread.start()
         order_manager_thread.start()
+        congestion_thread.start()
 
         for taxi in self.taxis:
-            taxi_Thread = Thread(target=taxi.start_simultation,args=(self.graph,self.turn_barrier,self.search_algorithm,self.atualization_rate))
+            taxi_Thread = Thread(target=taxi.start_simultation,args=(self.graph,self.turn_barrier,self.search_algorithm,self.atualization_rate,self.clock))
             taxi_Thread.start()
             taxi_Threads.append(taxi_Thread)
             self.active_threads_number += 1

@@ -33,3 +33,7 @@ class Viewer(BaseHTTPRequestHandler):
     def json_Orders(self):
         with self.l:    
             return [order.to_dict() for order in self.Orders if not order.isComplete()]
+        
+    def json_Stations(self):
+        with self.l:
+            return [station.to_dict() for station in self.charging_Stations]

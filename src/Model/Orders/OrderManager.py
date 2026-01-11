@@ -40,7 +40,6 @@ class OrderManager:
             self.next_order_id += 1
             order = Order(choice_id,self.crs,choice_source, choice_destination, choice_passengers,digital_clock_time,1,position=node.get_position())
             orders.append(order)
-        
         return orders
 
             
@@ -119,10 +118,9 @@ class OrderManager:
 
     def give_priority_orders(self, taxis, graph, search_algorithm) -> bool:
         i = 0
-        for order in self.priority_orders:
+        for order in self.priority_orders[:]:  
             if self.give_order_to_best_taxi(taxis,graph,order,search_algorithm):
                 self.priority_orders.remove(order)
-                self.terminated_orders.append(order)
             
             i += 1
         
@@ -130,10 +128,9 @@ class OrderManager:
     
     def give_normal_orders(self, taxis, graph, search_algorithm) -> bool:
         i = 0
-        for order in self.orders:
+        for order in self.orders[:]: 
             if self.give_order_to_best_taxi(taxis,graph,order,search_algorithm):
-                self.orders.pop(i)
-                self.terminated_orders.append(order)
+                self.orders.remove(order)
             
             i += 1
         
