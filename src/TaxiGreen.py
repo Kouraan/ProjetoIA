@@ -82,7 +82,7 @@ class TaxiGreen:
         for i in range(number_of_taxis):
             initial_node = nodes[random.randint(0, len(nodes)-1)] 
             taxi_type = random.randint(1,2)
-            autonomy = random.randint(20,25)
+            autonomy = random.randint(200,250)
             capacity = random.randint(1,4)
             kmCost = random.randint(1,5)
             ambiental_impact = round(random.random(), 2)
@@ -116,7 +116,8 @@ class TaxiGreen:
     def stop(self):
         for taxi in self.taxis:
             taxi.stop()
-        
+        self.order_manager.stop()
+        self.congestions_manager.stop()
         self.clock.stop()
         
 

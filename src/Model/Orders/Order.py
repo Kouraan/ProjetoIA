@@ -12,8 +12,7 @@ class Order_Status(Enum):
     Rejected = 4
 
 class Order:
-    def __init__(self,id, crs,source:int, destination:int, passengers, schedule, priority:int, prefAmbiental=None, tempo_espera=None,
-                 position:tuple[float,float] = (0,0)):
+    def __init__(self,id, crs,source:int, destination:int, passengers, schedule, priority:int, prefAmbiental=None, tempo_espera=None,position:tuple[float,float] = (0,0)):
         self.id = id
         self.source = source
         self.lan , self.lot = to_latlon(crs,position[0],position[1])
@@ -60,8 +59,7 @@ class Order:
     
     def complete(self, clock:Clock):
         with self.l:
-            print("Completed")
-            self.completion_time = clock.get_clock_time() - self.schedule
+            self.completion_time = clock.get_clock_minutes() - self.schedule
             self.status = Order_Status.Concluded.value
     
 

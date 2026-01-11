@@ -102,29 +102,8 @@ class Graph:
     
 
     
-    def heuristic(self,n1:int,n2:int, current_autonomy:int , max_autonomy:int, passengers:int, passengers_cap:int,orders:list[Order]):
-        distance_to_goal = self.euclidean_distance(n1,n2) * (current_autonomy/max_autonomy)
-        if current_autonomy < distance_to_goal:
-            distance_to_station = min([self.euclidean_distance(n1, station) for station in self.charging_nodes.keys()])
-            distance_to_goal += distance_to_station
-        
-        order_weight = 0.0
-        if passengers_cap > 0:
-            for order in orders:
-                order_passengers = order.get_passengers()
-                if order_passengers + passengers > passengers_cap:
-                    continue
-
-                dist_pickup = self.euclidean_distance(n1, order.get_source())
-                dist_dropoff = self.euclidean_distance(n2, order.get_destination())
-                distance_to_order = min(dist_pickup, dist_dropoff)
-
-                if distance_to_order < distance_to_goal:
-                    order_weight += order_passengers / (1 + distance_to_order)
-
-        return distance_to_goal -  0.1*order_weight
-
-
+    def heuristic(self,current_node:int,destination:int, current_autonomy:int , max_autonomy:int, passengers:int, passengers_cap:int,orders:list[Order]):
+        return self.euclidean_distance(current_node, destination)
 
 
     def reconstruct_path(self, came_from: dict, current: int):
@@ -139,13 +118,6 @@ class Graph:
         return path_edges
 
 
-
-
-    def search_Algorithms(self,search_algorithm:int, start:int,target:int,reserve_autonomy:float):
-        match search_algorithm:
-            case 1:
-                return self.dfs(start,target,reserve_autonomy)
-        pass
     
     def prepare_charging(self, start:int, autonomy:int,search_algorithm:int, type:StationType):
         with self.l:
@@ -220,7 +192,7 @@ class Graph:
 
 
     def dfsAlgorithm(self, start: int, destination: int):
-        stack:list[tuple[int, list[Edge], int, int]] = [(start, [], 0, 0)]  # node, path, weight, distance
+        stack:list[tuple[int, list[Edge], int, int]] = [(start, [], 0, 0)] 
         visited = set()
 
         while stack:
@@ -266,37 +238,42 @@ class Graph:
         return None
 
 
+    def reward_orders(self, current_node:int, orders:list[Order], passengers:int, capacity:int) -> float:
+        reward = 0
+        for order in orders:
+            if order.isAvailable() and passengers + order.get_passengers() <= capacity:
+                dist_pickup = self.euclidean_distance(current_node, order.get_source())
+                dist_dropoff = self.euclidean_distance(current_node, order.get_destination())
+                reward += order.get_passengers() / (1 + dist_pickup + dist_dropoff)
+        return reward
+
 
 
 
     def a_star_Algorithm(self, start: int, destination: int, passengers:int, passengers_cap:int, autonomy:int, maxAutonomy:int):
-        all_orders = self.get_all_orders()
         open_set = []
         heapq.heappush(open_set, (0, start))
 
-        came_from = {}            
-        g_score = {start: 0}         
-        dist_score = {start: 0}
+        came_from = {}
+        g_score = {start: 0}
 
         while open_set:
             _, node = heapq.heappop(open_set)
 
             if node == destination:
                 path = self.reconstruct_path(came_from, node)
-                total_weight = g_score[node]
-                total_distance = dist_score[node]
-                return path, total_weight, total_distance
+                return path, g_score[node], sum(edge.getLength() for _, edge in path)
 
-            for edge, neighbour in self.get_Neighbours(node):
+            for edge, neighbor in self.get_Neighbours(node):
+                if not edge.get_Activity():
+                    continue
+
                 tentative_g = g_score[node] + edge.weightFunction()
-                tentative_d = dist_score[node] + edge.getLength()
-
-                if tentative_g < g_score.get(neighbour, float('inf')):
-                    came_from[neighbour] = (node, edge)
-                    g_score[neighbour] = tentative_g
-                    dist_score[neighbour] = tentative_d
-                    f = tentative_g + self.heuristic(neighbour, destination,autonomy, maxAutonomy,passengers,passengers_cap,all_orders)
-                    heapq.heappush(open_set, (f, neighbour))
+                if tentative_g < g_score.get(neighbor, float('inf')):
+                    came_from[neighbor] = (node, edge)
+                    g_score[neighbor] = tentative_g
+                    f_score = tentative_g + self.euclidean_distance(neighbor, destination)
+                    heapq.heappush(open_set, (f_score, neighbor))
 
         return None
 

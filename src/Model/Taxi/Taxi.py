@@ -64,44 +64,41 @@ class Taxi:
             self.waitOrder(barrier)
             order:Order = self.orders.pop(0)
             self.simulation(atualization,order.get_source(),graph,search_algorithm,barrier)
-            print("Simulaçao 1 terminada")
             self.simulation(atualization,order.get_destination(),graph,search_algorithm,barrier)
             order.complete(clock)
 
             self.disponibility = disponibility.Free.value
 
-    def simulation(self, update_time, target:int, graph:Graph, search_algorithm:int,barrier:Barrier):
-        
-
-        current_distance = 0
-        r = graph.search_path(search_algorithm,start=self.currentNode,target=target,passengers=self.passengers,capacity=self.capacity)
-
+    def simulation(self, update_time: float, target: int, graph: Graph, search_algorithm: int, barrier: Barrier):
+        r = graph.search_path(search_algorithm, start=self.currentNode, target=target,
+                            passengers=self.passengers, capacity=self.capacity)
         if r is None:
             return
-        
-        path,cost,distance = r
+
+        path, cost, distance = r
         recharging = False
         if self.autonomy < distance:
-            recharging =True
-            graph.prepare_charging(self.currentNode, self.autonomy,search_algorithm,StationType.PETROL) 
+            recharging = True
+            graph.prepare_charging(self.currentNode, self.autonomy, search_algorithm, StationType.PETROL)
 
-        for next_node_id,edge in path:
+        overflow = 0.0
+        for next_node_id, edge in path:
             if not edge.get_Activity():
-                self.simulation(update_time, target,graph,search_algorithm,barrier)
+                self.simulation(update_time, target, graph, search_algorithm, barrier)
                 break
 
-            new_order = graph.pick_order_decision(next_node_id,target,self.capacity)
-            if new_order is not None: 
+            new_order = graph.pick_order_decision(next_node_id, target, self.capacity)
+            if new_order is not None:
                 self.setOrder(new_order)
                 self.passengers += new_order.get_passengers()
-            
-            station : Charge_Station = graph.recharge_choice_decision(self.currentNode,target,self.autonomy,recharging)
-    
-            if station: 
+
+            station: Charge_Station = graph.recharge_choice_decision(self.currentNode, target, self.autonomy, recharging)
+            if station:
                 station.charge(barrier)
                 self.autonomy = self.max_autonomy
 
-            current_distance = self.move(edge=edge,dt=update_time, barrier=barrier)
+            overflow = self.move(edge, dt=update_time, barrier=barrier, current_distance=overflow)
+
             self.setNode(next_node_id)
 
 
@@ -139,24 +136,17 @@ class Taxi:
 
     
     
-    def move(self, edge: Edge, dt: float, barrier: Barrier):
+    def move(self, edge: Edge, dt: float, barrier: Barrier, current_distance: float = 0.0):
         total_length = edge.getLength()
-        current_distance = 0.0 
-        while current_distance < total_length:
-            moved_distance = (edge.getSpeed() / 3.6) * dt
-            remaining = total_length - current_distance
-            moved_distance = min(moved_distance, remaining)
+        moved_distance = (edge.getSpeed() / 3.6) * dt
 
+        while moved_distance > 0 and self.autonomy > 0:
+            remaining = total_length - current_distance
+            step = min(moved_distance, remaining, self.autonomy)
 
             with self.lock:
-                if self.autonomy <= 0:
-
-                    break
-
-                real_move = min(self.autonomy, moved_distance)
-                self.autonomy -= real_move
-                current_distance += real_move
-
+                self.autonomy -= step
+                current_distance += step
                 if edge.positions is not None:
                     self.position = edge.positions.interpolate(current_distance).coords[0]
 
@@ -165,7 +155,14 @@ class Taxi:
             except BrokenBarrierError:
                 break
 
-        return current_distance
+            moved_distance -= step
+
+            if current_distance >= total_length:
+                overflow = moved_distance
+                current_distance = 0 
+                return overflow  
+
+        return 0  
 
 
     def to_dict(self):

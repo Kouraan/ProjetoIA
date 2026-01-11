@@ -36,6 +36,9 @@ class Clock:
                     self.Running.clear() 
         
 
+    def get_clock_minutes(self):
+        with self.l:
+            return self.day*1440 + self.hour*60 + self.minute
 
     def get_clock_time(self): 
         with self.l:
